@@ -1,0 +1,13 @@
+**/secret*.yml
+**/secret*.yaml
+**/*secret*.yml
+**/*secret*.yaml
+
+**/*secrets*.yml
+**/*secrets*.yaml
+
+**/charts/
+**/*.tgz
+
+**/Chart.lock
+**/charts/**/charts/

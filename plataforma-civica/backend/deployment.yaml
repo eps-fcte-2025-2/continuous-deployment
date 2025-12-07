@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: plataforma-civica-backend
+  namespace: plataforma-civica
   labels:
     app: plataforma-civica-backend
 spec:
@@ -14,6 +15,104 @@ spec:
       labels:
         app: plataforma-civica-backend
     spec:
+      volumes:
+        - name: entrypoint
+          emptyDir: {}
+
+      initContainers:
+        - name: write-entrypoint
+          image: busybox:1.36
+          command: ["/bin/sh", "-lc"]
+          args:
+            - |
+              mkdir -p /entrypoint
+              cat > /entrypoint/docker-entrypoint.sh <<'EOF'
+              #!/bin/sh
+              set -e
+
+              echo "[entrypoint] Iniciando aplicacao Plataforma Civica Backend..."
+
+              DB_HOST="${POSTGRES_HOST:-database}"
+              DB_PORT="${POSTGRES_PORT:-5432}"
+              SCHEMA_PATH="/app/prisma/schema.prisma"
+
+              echo "[entrypoint] Criando /app/.env..."
+              env > /app/.env
+
+              if [ -z "${JWT_SECRET:-}" ]; then
+                echo "[entrypoint] ERRO: JWT_SECRET vazio/ausente no envFrom."
+                exit 1
+              fi
+              if [ -z "${DATABASE_URL:-}" ]; then
+                echo "[entrypoint] ERRO: DATABASE_URL vazio/ausente no envFrom."
+                exit 1
+              fi
+
+              echo "[entrypoint] Validando schema do Prisma em ${SCHEMA_PATH}..."
+              if [ ! -f "$SCHEMA_PATH" ]; then
+                echo "[entrypoint] ERRO: Nao encontrei ${SCHEMA_PATH}."
+                echo "[entrypoint] schema.prisma encontrados em /app:"
+                find /app -maxdepth 3 -name "schema.prisma" -print || true
+                exit 1
+              fi
+
+              echo "[entrypoint] Aguardando banco PostgreSQL em ${DB_HOST}:${DB_PORT}..."
+              timeout=180
+              counter=0
+              until nc -z "$DB_HOST" "$DB_PORT"; do
+                if [ $counter -ge $timeout ]; then
+                  echo "[entrypoint] ERRO: Timeout - Banco nao disponivel apos ${timeout}s"
+                  exit 1
+                fi
+                echo "[entrypoint] Banco nao esta pronto, aguardando... (${counter}/${timeout}s)"
+                sleep 2
+                counter=$((counter + 2))
+              done
+              echo "[entrypoint] Banco disponivel!"
+
+              cd /app
+
+              if [ ! -x "./node_modules/.bin/prisma" ]; then
+                echo "[entrypoint] node_modules/.bin/prisma nao encontrado. Rodando pnpm install..."
+                pnpm install --frozen-lockfile
+              fi
+
+              echo "[entrypoint] Aplicando migrations do Prisma (schema correto)..."
+              pnpm exec prisma migrate deploy --schema "$SCHEMA_PATH"
+
+              echo "[entrypoint] Gerando Prisma Client (schema correto)..."
+              pnpm exec prisma generate --schema "$SCHEMA_PATH"
+
+              echo "[entrypoint] Verificando pasta gerada /app/generated/prisma..."
+              ls -la /app/generated || true
+              ls -la /app/generated/prisma || true
+
+              if [ ! -f "/app/generated/prisma/package.json" ]; then
+                echo "[entrypoint] ERRO: Prisma Client nao foi gerado em /app/generated/prisma."
+                echo "[entrypoint] Dica: isso so acontece se o schema usado nao for o de /app/prisma."
+                exit 1
+              fi
+
+              echo "[entrypoint] Patch PrismaClient import + 'item' any..."
+              TARGET="/app/src/modules/public/infra/repositories/PublicRepositoryImpl.ts"
+              if [ -f "$TARGET" ]; then
+                sed -i -E \
+                  's|^import[[:space:]]+\{[[:space:]]*PrismaClient[[:space:]]*\}[[:space:]]+from[[:space:]]+["'\''][^"'\''"]+["'\''];$|import { PrismaClient } from "../../../../../generated/prisma";|' \
+                  "$TARGET" || true
+
+                sed -i -E 's/\((item)\)[[:space:]]*=>/(\1: any) =>/g' "$TARGET" || true
+              else
+                echo "[entrypoint] AVISO: arquivo alvo nao encontrado: $TARGET"
+              fi
+
+              echo "[entrypoint] Iniciando servidor (pnpm dev)..."
+              exec pnpm dev
+              EOF
+              chmod +x /entrypoint/docker-entrypoint.sh
+          volumeMounts:
+            - name: entrypoint
+              mountPath: /entrypoint
+
       containers:
         - name: backend
           image: ghcr.io/eps-fcte-2025-2/plataforma-civica-backend:main
@@ -27,12 +126,22 @@ spec:
             - secretRef:
                 name: plataforma-civica-backend-secret
 
+          volumeMounts:
+            - name: entrypoint
+              mountPath: /app/docker-entrypoint.sh
+              subPath: docker-entrypoint.sh
+
+          command: ["/bin/sh", "-lc"]
+          args:
+            - exec /app/docker-entrypoint.sh
+
           startupProbe:
             httpGet:
               path: /health
               port: 3333
             periodSeconds: 5
-            failureThreshold: 12
+            timeoutSeconds: 2
+            failureThreshold: 30
 
           readinessProbe:
             httpGet:
@@ -52,8 +161,8 @@ spec:
 
           resources:
             requests:
-              memory: "64Mi"
               cpu: "250m"
+              memory: "256Mi"
             limits:
-              memory: "128Mi"
-              cpu: "500m"
+              cpu: "1"
+              memory: "512Mi"
