@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plataforma-civica-backend-config
+  labels:
+    app: plataforma-civica-backend
+data:
+  PORT: "3333"
+  LOG_LEVEL: "info"
+
+  WHATSAPP_API_URL: "https://graph.facebook.com/v17.0"
+
+  LANGFLOW_API_URL: "http://localhost:3000/api/v1/prediction"

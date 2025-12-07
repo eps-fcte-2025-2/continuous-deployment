@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-plataforma-civica-backend
+  namespace: plataforma-civica
+  annotations:
+    cert-manager.io/issuer: cert-plataforma-civica-backend
+  labels:
+    app: plataforma-civica-backend
+spec:
+  ingressClassName: external-nginx
+  tls:
+    - hosts:
+        - api.apitacidadao.clusterlab.lappis.rocks
+      secretName: tls-plataforma-civica-backend
+  rules:
+    - host: api.apitacidadao.clusterlab.lappis.rocks
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: plataforma-civica-backend
+                port:
+                  number: 3333

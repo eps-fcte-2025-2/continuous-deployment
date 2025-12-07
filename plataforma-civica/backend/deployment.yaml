@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plataforma-civica-backend
+  labels:
+    app: plataforma-civica-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plataforma-civica-backend
+  template:
+    metadata:
+      labels:
+        app: plataforma-civica-backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/eps-fcte-2025-2/plataforma-civica-backend:main
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3333
+          envFrom:
+            - configMapRef:
+                name: plataforma-civica-backend-config
+            - secretRef:
+                name: plataforma-civica-backend-secret
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3333
+            periodSeconds: 5
+            failureThreshold: 12
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3333
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3333
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"

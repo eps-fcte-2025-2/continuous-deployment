@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: plataforma-civica-backend
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: backend=ghcr.io/eps-fcte-2025-2/plataforma-civica-backend:main
+    argocd-image-updater.argoproj.io/backend.update-strategy: digest
+spec:
+  project: default
+  source:
+    repoURL: "https://github.com/eps-fcte-2025-2/continuous-deployment.git"
+    path: "plataforma-civica/backend"
+    targetRevision: main
+    kustomize: {}
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: plataforma-civica
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
