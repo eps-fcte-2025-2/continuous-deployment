@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plataforma-civica-frontend-config
+  labels:
+    app: plataforma-civica-frontend
+data:
+  NODE_ENV: "production"
+  NEXT_TELEMETRY_DISABLED: "1"
+  WATCHPACK_POLLING: "true"
+
+  NEXT_PUBLIC_API_BASE_URL: "https://api.apitacidadao.clusterlab.lappis.rocks"
+
+  NEXT_PUBLIC_APP_NAME: "Plataforma Cívica"
+  NEXT_PUBLIC_APP_VERSION: "1.0.0"
