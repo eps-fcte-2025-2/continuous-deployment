@@ -1,0 +1,31 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: plataforma-civica-db
+  namespace: plataforma-civica
+spec:
+  instances: 1
+
+  storage:
+    size: 3Gi
+
+  bootstrap:
+    initdb:
+      database: plataforma-civica
+      owner: plataforma-civica
+      secret:
+        name: plataforma-civica-db-app
+
+  managed:
+    services:
+      additional:
+        - selectorType: rw
+          serviceTemplate:
+            metadata:
+              name: database
+            spec:
+              type: ClusterIP
+              ports:
+                - name: postgres
+                  port: 5432
+                  targetPort: 5432
